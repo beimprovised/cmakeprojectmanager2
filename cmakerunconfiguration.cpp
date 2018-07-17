@@ -107,7 +107,7 @@ void CMakeRunConfiguration::updateTargetInformation()
 }
 
 // Factory
-CMakeRunConfigurationFactory::CMakeRunConfigurationFactory()
+CMakeRunConfigurationFactory::CMakeRunConfigurationFactory(): ProjectExplorer::FixedRunConfigurationFactory("CMakeProjectManager.CMakeRunConfiguration.")
 {
     registerRunConfiguration<CMakeRunConfiguration>("CMakeProjectManager.CMakeRunConfiguration.");
     addSupportedProjectType(CMakeProjectManager::Constants::CMAKEPROJECT_ID);

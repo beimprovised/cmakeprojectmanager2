@@ -1,4 +1,9 @@
 QTC_PLUGIN_NAME = CMakeProjectManager2
+
+QMAKE_CXXFLAGS += -std=c++14
+QMAKE_CXXFLAGS += -fPIC
+QMAKE_CXXFLAGS += -rdynamic
+
 QTC_LIB_DEPENDS += \
     extensionsystem \
     qmljs \

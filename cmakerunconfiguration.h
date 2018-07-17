@@ -30,28 +30,27 @@
 namespace CMakeProjectManager {
 namespace Internal {
 
-class CMakeRunConfiguration : public ProjectExplorer::RunConfiguration
-{
-    Q_OBJECT
+    class CMakeRunConfiguration : public ProjectExplorer::RunConfiguration {
+        Q_OBJECT
 
-public:
-    CMakeRunConfiguration(ProjectExplorer::Target *target, Core::Id id);
+    public:
+        CMakeRunConfiguration(ProjectExplorer::Target* target, Core::Id id);
 
-private:
-    QString disabledReason() const override;
+    private:
+        QString disabledReason() const override;
 
-    void doAdditionalSetup(const ProjectExplorer::RunConfigurationCreationInfo &) override;
-    bool isBuildTargetValid() const;
-    void updateTargetInformation();
+        void doAdditionalSetup(const ProjectExplorer::RunConfigurationCreationInfo&) /*override*/;
+        bool isBuildTargetValid() const;
+        void updateTargetInformation();
 
-    void updateEnabledState() final;
-};
+        void updateEnabledState() final;
+    };
 
-class CMakeRunConfigurationFactory : public ProjectExplorer::RunConfigurationFactory
-{
-public:
-    CMakeRunConfigurationFactory();
-};
+    class CMakeRunConfigurationFactory : public ProjectExplorer::FixedRunConfigurationFactory //IRunConfigurationFactory
+    {
+    public:
+        CMakeRunConfigurationFactory();
+    };
 
 } // namespace Internal
 } // namespace CMakeProjectManager

@@ -28,17 +28,17 @@
 #include "cmakebuildconfiguration.h"
 #include "cmakekitinformation.h"
 #include "cmakeprojectconstants.h"
-#include "cmakeprojectnodes.h"
 #include "cmakeprojectmanager.h"
+#include "cmakeprojectnodes.h"
 #include "compat.h"
 
 #include <coreplugin/icore.h>
 #include <coreplugin/progressmanager/progressmanager.h>
-#include <cpptools/cpprawprojectpart.h>
 #include <cpptools/cppprojectupdater.h>
+#include <cpptools/cpprawprojectpart.h>
+#include <cpptools/cpptoolsconstants.h>
 #include <cpptools/generatedcodemodelsupport.h>
 #include <cpptools/projectinfo.h>
-#include <cpptools/cpptoolsconstants.h>
 #include <projectexplorer/buildtargetinfo.h>
 #include <projectexplorer/deploymentdata.h>
 #include <projectexplorer/headerpath.h>
@@ -47,18 +47,18 @@
 #include <projectexplorer/projectexplorerconstants.h>
 #include <projectexplorer/target.h>
 #include <projectexplorer/toolchain.h>
+#include <qmljs/qmljsmodelmanagerinterface.h>
 #include <qtsupport/baseqtversion.h>
 #include <qtsupport/qtkitinformation.h>
-#include <qmljs/qmljsmodelmanagerinterface.h>
 
 #include <utils/algorithm.h>
+#include <utils/hostosinfo.h>
 #include <utils/qtcassert.h>
 #include <utils/stringutils.h>
-#include <utils/hostosinfo.h>
 
 #include <QDir>
-#include <QSet>
 #include <QMessageBox>
+#include <QSet>
 
 using namespace ProjectExplorer;
 using namespace Utils;
@@ -67,9 +67,9 @@ namespace CMakeProjectManager {
 
 using namespace Internal;
 
-static CMakeBuildConfiguration *activeBc(const CMakeProject *p)
+static CMakeBuildConfiguration* activeBc(const CMakeProject* p)
 {
-    return qobject_cast<CMakeBuildConfiguration *>(p->activeTarget() ? p->activeTarget()->activeBuildConfiguration() : nullptr);
+    return qobject_cast<CMakeBuildConfiguration*>(p->activeTarget() ? p->activeTarget()->activeBuildConfiguration() : nullptr);
 }
 
 // QtCreator CMake Generator wishlist:
@@ -80,8 +80,9 @@ static CMakeBuildConfiguration *activeBc(const CMakeProject *p)
 /*!
   \class CMakeProject
 */
-CMakeProject::CMakeProject(const FileName &fileName) : Project(Constants::CMAKEMIMETYPE, fileName),
-    m_cppCodeModelUpdater(new CppTools::CppProjectUpdater(this))
+CMakeProject::CMakeProject(const FileName& fileName)
+    : Project(Constants::CMAKEMIMETYPE, fileName)
+    , m_cppCodeModelUpdater(new CppTools::CppProjectUpdater(this))
 {
     setId(CMakeProjectManager::Constants::CMAKEPROJECT_ID);
     setProjectLanguages(Core::Context(ProjectExplorer::Constants::CXX_LANGUAGE_ID));
@@ -91,53 +92,53 @@ CMakeProject::CMakeProject(const FileName &fileName) : Project(Constants::CMAKEM
     m_delayedParsingTimer.setSingleShot(true);
 
     connect(&m_delayedParsingTimer, &QTimer::timeout,
-            this, [this]() { startParsing(m_delayedParsingParameters); });
+        this, [this]() { startParsing(m_delayedParsingParameters); });
 
     // BuildDirManager:
     connect(&m_buildDirManager, &BuildDirManager::requestReparse,
-            this, &CMakeProject::handleReparseRequest);
+        this, &CMakeProject::handleReparseRequest);
     connect(&m_buildDirManager, &BuildDirManager::dataAvailable,
-            this, [this]() {
-        CMakeBuildConfiguration *bc = activeBc(this);
-        if (bc && bc == m_buildDirManager.buildConfiguration()) {
-            bc->clearError();
-            handleParsingSuccess(bc);
-        }
-    });
+        this, [this]() {
+            CMakeBuildConfiguration* bc = activeBc(this);
+            if (bc && bc == m_buildDirManager.buildConfiguration()) {
+                bc->clearError();
+                handleParsingSuccess(bc);
+            }
+        });
     connect(&m_buildDirManager, &BuildDirManager::errorOccured,
-            this, [this](const QString &msg) {
-        CMakeBuildConfiguration *bc = activeBc(this);
-        if (bc && bc == m_buildDirManager.buildConfiguration()) {
-            bc->setError(msg);
-            bc->setConfigurationFromCMake(m_buildDirManager.takeCMakeConfiguration());
-            handleParsingError(bc);
-        }
-    });
+        this, [this](const QString& msg) {
+            CMakeBuildConfiguration* bc = activeBc(this);
+            if (bc && bc == m_buildDirManager.buildConfiguration()) {
+                bc->setError(msg);
+                bc->setConfigurationFromCMake(m_buildDirManager.takeCMakeConfiguration());
+                handleParsingError(bc);
+            }
+        });
     connect(&m_buildDirManager, &BuildDirManager::parsingStarted,
-            this, [this]() {
-        CMakeBuildConfiguration *bc = activeBc(this);
-        if (bc && bc == m_buildDirManager.buildConfiguration())
-            bc->clearError(CMakeBuildConfiguration::ForceEnabledChanged::True);
-    });
+        this, [this]() {
+            CMakeBuildConfiguration* bc = activeBc(this);
+            if (bc && bc == m_buildDirManager.buildConfiguration())
+                bc->clearError(CMakeBuildConfiguration::ForceEnabledChanged::True);
+        });
 
     // Kit changed:
     connect(KitManager::instance(), &KitManager::kitUpdated,
-            this, [this](Kit *k) {
-        CMakeBuildConfiguration *bc = activeBc(this);
-        if (!bc || k != bc->target()->kit())
-            return; // not for us...
+        this, [this](Kit* k) {
+            CMakeBuildConfiguration* bc = activeBc(this);
+            if (!bc || k != bc->target()->kit())
+                return; // not for us...
 
-        // Build configuration has not changed, but Kit settings might have:
-        // reparse and check the configuration, independent of whether the reader has changed
-        m_buildDirManager.setParametersAndRequestParse(
-                    BuildDirParameters(bc),
-                    BuildDirManager::REPARSE_CHECK_CONFIGURATION,
-                    BuildDirManager::REPARSE_CHECK_CONFIGURATION);
-    });
+            // Build configuration has not changed, but Kit settings might have:
+            // reparse and check the configuration, independent of whether the reader has changed
+            m_buildDirManager.setParametersAndRequestParse(
+                BuildDirParameters(bc),
+                BuildDirManager::REPARSE_CHECK_CONFIGURATION,
+                BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+        });
 
     // Target switched:
     connect(this, &Project::activeTargetChanged, this, [this]() {
-        CMakeBuildConfiguration *bc = activeBc(this);
+        CMakeBuildConfiguration* bc = activeBc(this);
 
         if (!bc)
             return;
@@ -146,14 +147,14 @@ CMakeProject::CMakeProject(const FileName &fileName) : Project(Constants::CMAKEM
         // * run cmake with configuration arguments if the reader needs to be switched
         // * run cmake without configuration arguments if the reader stays
         m_buildDirManager.setParametersAndRequestParse(
-                    BuildDirParameters(bc),
-                    BuildDirManager::REPARSE_CHECK_CONFIGURATION,
-                    BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+            BuildDirParameters(bc),
+            BuildDirManager::REPARSE_CHECK_CONFIGURATION,
+            BuildDirManager::REPARSE_CHECK_CONFIGURATION);
     });
 
     // BuildConfiguration switched:
     subscribeSignal(&Target::activeBuildConfigurationChanged, this, [this]() {
-        CMakeBuildConfiguration *bc = activeBc(this);
+        CMakeBuildConfiguration* bc = activeBc(this);
 
         if (!bc)
             return;
@@ -162,27 +163,27 @@ CMakeProject::CMakeProject(const FileName &fileName) : Project(Constants::CMAKEM
         // * Check configuration if reader changes due to it not existing yet:-)
         // * run cmake without configuration arguments if the reader stays
         m_buildDirManager.setParametersAndRequestParse(
-                    BuildDirParameters(bc),
-                    BuildDirManager::REPARSE_CHECK_CONFIGURATION,
-                    BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+            BuildDirParameters(bc),
+            BuildDirManager::REPARSE_CHECK_CONFIGURATION,
+            BuildDirManager::REPARSE_CHECK_CONFIGURATION);
     });
 
     // BuildConfiguration changed:
     subscribeSignal(&CMakeBuildConfiguration::environmentChanged, this, [this]() {
-        auto senderBc = qobject_cast<CMakeBuildConfiguration *>(sender());
+        auto senderBc = qobject_cast<CMakeBuildConfiguration*>(sender());
 
         if (senderBc && senderBc->isActive()) {
             // The environment on our BC has changed:
             // * Error out if the reader updates, can not happen since all BCs share a target/kit.
             // * run cmake without configuration arguments if the reader stays
             m_buildDirManager.setParametersAndRequestParse(
-                        BuildDirParameters(senderBc),
-                        BuildDirManager::REPARSE_FAIL,
-                        BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+                BuildDirParameters(senderBc),
+                BuildDirManager::REPARSE_FAIL,
+                BuildDirManager::REPARSE_CHECK_CONFIGURATION);
         }
     });
     subscribeSignal(&CMakeBuildConfiguration::buildDirectoryChanged, this, [this]() {
-        auto senderBc = qobject_cast<CMakeBuildConfiguration *>(sender());
+        auto senderBc = qobject_cast<CMakeBuildConfiguration*>(sender());
 
         if (senderBc && senderBc->isActive() && senderBc == m_buildDirManager.buildConfiguration()) {
             // The build directory of our BC has changed:
@@ -191,33 +192,31 @@ CMakeProject::CMakeProject(const FileName &fileName) : Project(Constants::CMAKEM
             //   If no configuration exists, then the arguments will get added automatically by
             //   the reader.
             m_buildDirManager.setParametersAndRequestParse(
-                        BuildDirParameters(senderBc),
-                        BuildDirManager::REPARSE_FAIL,
-                        BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+                BuildDirParameters(senderBc),
+                BuildDirManager::REPARSE_FAIL,
+                BuildDirManager::REPARSE_CHECK_CONFIGURATION);
         }
     });
     subscribeSignal(&CMakeBuildConfiguration::configurationForCMakeChanged, this, [this]() {
-        auto senderBc = qobject_cast<CMakeBuildConfiguration *>(sender());
+        auto senderBc = qobject_cast<CMakeBuildConfiguration*>(sender());
 
         if (senderBc && senderBc->isActive() && senderBc == m_buildDirManager.buildConfiguration()) {
             // The CMake configuration has changed on our BC:
             // * Error out if the reader updates, can not happen since all BCs share a target/kit.
             // * run cmake with configuration arguments if the reader stays
             m_buildDirManager.setParametersAndRequestParse(
-                        BuildDirParameters(senderBc),
-                        BuildDirManager::REPARSE_FAIL,
-                        BuildDirManager::REPARSE_FORCE_CONFIGURATION);
+                BuildDirParameters(senderBc),
+                BuildDirManager::REPARSE_FAIL,
+                BuildDirManager::REPARSE_FORCE_CONFIGURATION);
         }
     });
 
     // TreeScanner:
     connect(&m_treeScanner, &TreeScanner::finished, this, &CMakeProject::handleTreeScanningFinished);
 
-    m_treeScanner.setFilter([this](const Utils::MimeType &mimeType, const Utils::FileName &fn) {
+    m_treeScanner.setFilter([this](const Utils::MimeType& mimeType, const Utils::FileName& fn) {
         // Mime checks requires more resources, so keep it last in check list
-        auto isIgnored =
-                fn.toString().startsWith(projectFilePath().toString() + ".user") ||
-                TreeScanner::isWellKnownBinary(mimeType, fn);
+        auto isIgnored = fn.toString().startsWith(projectFilePath().toString() + ".user") || TreeScanner::isWellKnownBinary(mimeType, fn);
 
         // Cache mime check result for speed up
         if (!isIgnored) {
@@ -233,7 +232,7 @@ CMakeProject::CMakeProject(const FileName &fileName) : Project(Constants::CMAKEM
         return isIgnored;
     });
 
-    m_treeScanner.setTypeFactory([](const Utils::MimeType &mimeType, const Utils::FileName &fn) {
+    m_treeScanner.setTypeFactory([](const Utils::MimeType& mimeType, const Utils::FileName& fn) {
         auto type = TreeScanner::genericFileType(mimeType, fn);
         if (type == FileType::Unknown) {
             if (mimeType.isValid()) {
@@ -259,16 +258,16 @@ CMakeProject::~CMakeProject()
     qDeleteAll(m_allFiles);
 }
 
-void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
+void CMakeProject::updateProjectData(CMakeBuildConfiguration* bc)
 {
-    const CMakeBuildConfiguration *aBc = activeBc(this);
+    const CMakeBuildConfiguration* aBc = activeBc(this);
 
-    QTC_ASSERT(bc, return);
-    QTC_ASSERT(bc == aBc, return);
-    QTC_ASSERT(m_treeScanner.isFinished() && !m_buildDirManager.isParsing(), return);
+    QTC_ASSERT(bc, return );
+    QTC_ASSERT(bc == aBc, return );
+    QTC_ASSERT(m_treeScanner.isFinished() && !m_buildDirManager.isParsing(), return );
 
-    Target *t = bc->target();
-    Kit *k = t->kit();
+    Target* t = bc->target();
+    Kit* k = t->kit();
 
     bc->setBuildTargets(m_buildDirManager.takeBuildTargets());
     bc->setConfigurationFromCMake(m_buildDirManager.takeCMakeConfiguration());
@@ -276,7 +275,8 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
     auto newRoot = generateProjectTree(m_allFiles);
     if (newRoot) {
         setDisplayName(newRoot->displayName());
-        setRootProjectNode(std::move(newRoot));
+        setRootProjectNode(std::move(newRoot)
+        );
     }
 
     updateApplicationAndDeploymentTargets();
@@ -284,14 +284,14 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
 
     createGeneratedCodeModelSupport();
 
-    ToolChain *tcC = ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::C_LANGUAGE_ID);
-    ToolChain *tcCxx = ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
+    ToolChain* tcC = ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::C_LANGUAGE_ID);
+    ToolChain* tcCxx = ToolChainKitInformation::toolChain(k, ProjectExplorer::Constants::CXX_LANGUAGE_ID);
 
     CppTools::ProjectPart::QtVersion activeQtVersion = CppTools::ProjectPart::NoQt;
-    if (QtSupport::BaseQtVersion *qtVersion = QtSupport::QtKitInformation::qtVersion(k)) {
-        if (qtVersion->qtVersion() <= QtSupport::QtVersionNumber(4,8,6))
+    if (QtSupport::BaseQtVersion* qtVersion = QtSupport::QtKitInformation::qtVersion(k)) {
+        if (qtVersion->qtVersion() <= QtSupport::QtVersionNumber(4, 8, 6))
             activeQtVersion = CppTools::ProjectPart::Qt4_8_6AndOlder;
-        else if (qtVersion->qtVersion() < QtSupport::QtVersionNumber(5,0,0))
+        else if (qtVersion->qtVersion() < QtSupport::QtVersionNumber(5, 0, 0))
             activeQtVersion = CppTools::ProjectPart::Qt4Latest;
         else
             activeQtVersion = CppTools::ProjectPart::Qt5;
@@ -300,16 +300,16 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
     CppTools::RawProjectParts rpps;
     m_buildDirManager.updateCodeModel(rpps);
 
-    for (CppTools::RawProjectPart &rpp : rpps) {
+    for (CppTools::RawProjectPart& rpp : rpps) {
         // TODO: Set the Qt version only if target actually depends on Qt.
         rpp.setQtVersion(activeQtVersion);
         if (tcCxx)
-            rpp.setFlagsForCxx({tcCxx, rpp.flagsForCxx.commandLineFlags});
+            rpp.setFlagsForCxx({ tcCxx, rpp.flagsForCxx.commandLineFlags });
         if (tcC)
-            rpp.setFlagsForC({tcC, rpp.flagsForC.commandLineFlags});
+            rpp.setFlagsForC({ tcC, rpp.flagsForC.commandLineFlags });
     }
 
-    m_cppCodeModelUpdater->update({this, tcC, tcCxx, k, rpps});
+    m_cppCodeModelUpdater->update({ this, tcC, tcCxx, k, rpps });
 
     updateQmlJSCodeModel();
 
@@ -322,38 +322,37 @@ void CMakeProject::updateProjectData(CMakeBuildConfiguration *bc)
 
 void CMakeProject::updateQmlJSCodeModel()
 {
-    QmlJS::ModelManagerInterface *modelManager = QmlJS::ModelManagerInterface::instance();
-    QTC_ASSERT(modelManager, return);
+    QmlJS::ModelManagerInterface* modelManager = QmlJS::ModelManagerInterface::instance();
+    QTC_ASSERT(modelManager, return );
 
     if (!activeTarget() || !activeTarget()->activeBuildConfiguration())
         return;
 
-    QmlJS::ModelManagerInterface::ProjectInfo projectInfo =
-            modelManager->defaultProjectInfoForProject(this);
+    QmlJS::ModelManagerInterface::ProjectInfo projectInfo = modelManager->defaultProjectInfoForProject(this);
 
     projectInfo.importPaths.clear();
 
     QString cmakeImports;
-    CMakeBuildConfiguration *bc = qobject_cast<CMakeBuildConfiguration *>(activeTarget()->activeBuildConfiguration());
+    CMakeBuildConfiguration* bc = qobject_cast<CMakeBuildConfiguration*>(activeTarget()->activeBuildConfiguration());
     if (!bc)
         return;
 
-    const CMakeConfig &cm = bc->configurationFromCMake();
-    foreach (const CMakeConfigItem &di, cm) {
+    const CMakeConfig& cm = bc->configurationFromCMake();
+    foreach (const CMakeConfigItem& di, cm) {
         if (di.key.contains("QML_IMPORT_PATH")) {
             cmakeImports = QString::fromUtf8(di.value);
             break;
         }
     }
 
-    foreach (const QString &cmakeImport, CMakeConfigItem::cmakeSplitValue(cmakeImports))
+    foreach (const QString& cmakeImport, CMakeConfigItem::cmakeSplitValue(cmakeImports))
         projectInfo.importPaths.maybeInsert(FileName::fromString(cmakeImport), QmlJS::Dialect::Qml);
 
     modelManager->updateProjectInfo(projectInfo, this);
 }
 
 std::unique_ptr<CMakeProjectNode>
-CMakeProject::generateProjectTree(const QList<const FileNode *> &allFiles) const
+CMakeProject::generateProjectTree(const QList<const FileNode*>& allFiles) const
 {
     if (m_buildDirManager.isParsing())
         return nullptr;
@@ -368,7 +367,7 @@ bool CMakeProject::knowsAllBuildExecutables() const
     return false;
 }
 
-QList<Task> CMakeProject::projectIssues(const Kit *k) const
+QList<Task> CMakeProject::projectIssues(const Kit* k) const
 {
     QList<Task> result = Project::projectIssues(k);
 
@@ -382,38 +381,38 @@ QList<Task> CMakeProject::projectIssues(const Kit *k) const
 
 void CMakeProject::runCMake()
 {
-    CMakeBuildConfiguration *bc = activeBc(this);
+    CMakeBuildConfiguration* bc = activeBc(this);
     if (isParsing() || !bc)
         return;
 
     BuildDirParameters parameters(bc);
     m_buildDirManager.setParametersAndRequestParse(parameters,
-                                                   BuildDirManager::REPARSE_CHECK_CONFIGURATION,
-                                                   BuildDirManager::REPARSE_CHECK_CONFIGURATION);
+        BuildDirManager::REPARSE_CHECK_CONFIGURATION,
+        BuildDirManager::REPARSE_CHECK_CONFIGURATION);
 }
 
 void CMakeProject::runCMakeAndScanProjectTree()
 {
-    CMakeBuildConfiguration *bc = activeBc(this);
+    CMakeBuildConfiguration* bc = activeBc(this);
     if (isParsing() || !bc)
         return;
-    QTC_ASSERT(m_treeScanner.isFinished(), return);
+    QTC_ASSERT(m_treeScanner.isFinished(), return );
 
     BuildDirParameters parameters(bc);
     m_buildDirManager.setParametersAndRequestParse(parameters,
-                                                   BuildDirManager::REPARSE_CHECK_CONFIGURATION | BuildDirManager::REPARSE_SCAN,
-                                                   BuildDirManager::REPARSE_CHECK_CONFIGURATION | BuildDirManager::REPARSE_SCAN);
+        BuildDirManager::REPARSE_CHECK_CONFIGURATION | BuildDirManager::REPARSE_SCAN,
+        BuildDirManager::REPARSE_CHECK_CONFIGURATION | BuildDirManager::REPARSE_SCAN);
 }
 
-void CMakeProject::buildCMakeTarget(const QString &buildTarget)
+void CMakeProject::buildCMakeTarget(const QString& buildTarget)
 {
-    QTC_ASSERT(!buildTarget.isEmpty(), return);
-    CMakeBuildConfiguration *bc = activeBc(this);
+    QTC_ASSERT(!buildTarget.isEmpty(), return );
+    CMakeBuildConfiguration* bc = activeBc(this);
     if (bc)
         bc->buildTarget(buildTarget);
 }
 
-ProjectImporter *CMakeProject::projectImporter() const
+ProjectImporter* CMakeProject::projectImporter() const
 {
     if (!m_projectImporter)
         m_projectImporter = std::make_unique<CMakeProjectImporter>(projectFilePath());
@@ -443,10 +442,10 @@ void CMakeProject::updateProjectData()
     updateProjectData(bc);
 }
 
-bool CMakeProject::addFiles(const QStringList &filePaths)
+bool CMakeProject::addFiles(const QStringList& filePaths)
 {
-    QList<const FileNode *> nodes; // nodes to store in persistent tree
-    for (auto &filePath : filePaths) {
+    QList<const FileNode*> nodes; // nodes to store in persistent tree
+    for (auto& filePath : filePaths) {
         const auto mimeType = Utils::mimeTypeForFile(filePath);
         auto fn = FileName::fromString(filePath);
         auto type = TreeScanner::genericFileType(mimeType, fn);
@@ -465,18 +464,18 @@ bool CMakeProject::addFiles(const QStringList &filePaths)
     auto oldSize = m_allFiles.size();
     m_allFiles.append(nodes);
     std::inplace_merge(m_allFiles.begin(),
-                       m_allFiles.begin() + oldSize,
-                       m_allFiles.end(),
-                       Node::sortByPath);
+        m_allFiles.begin() + oldSize,
+        m_allFiles.end(),
+        Node::sortByPath);
 
     updateProjectData();
 
     return true;
 }
 
-bool CMakeProject::eraseFiles(const QStringList &filePaths)
+bool CMakeProject::eraseFiles(const QStringList& filePaths)
 {
-    QList<const FileNode *> removed;
+    QList<const FileNode*> removed;
     for (auto& filePath : filePaths) {
         const auto mimeType = Utils::mimeTypeForFile(filePath);
         auto fn = FileName::fromString(filePath);
@@ -497,8 +496,8 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
     int allIdx = static_cast<int>(std::distance(m_allFiles.begin(), it));
     int remIdx = 0;
     while (allIdx < m_allFiles.size() && remIdx < removed.size()) {
-        auto &allNode = m_allFiles[allIdx];
-        auto &removeNode = removed[remIdx];
+        auto& allNode = m_allFiles[allIdx];
+        auto& removeNode = removed[remIdx];
 
         if (Node::sortByPath(allNode, removeNode)) {
             allIdx++;
@@ -513,14 +512,14 @@ bool CMakeProject::eraseFiles(const QStringList &filePaths)
     }
 
     // Real deleting occurs after function exit.
-    QTimer::singleShot(200, this, [this](){
+    QTimer::singleShot(200, this, [this]() {
         this->updateProjectData();
     });
 
     return true;
 }
 
-bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePath)
+bool CMakeProject::renameFile(const QString& filePath, const QString& newFilePath)
 {
     auto fn = FileName::fromString(filePath);
     auto newfn = FileName::fromString(newFilePath);
@@ -531,9 +530,9 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
     // Update tree without full rescan run
     {
         auto it = std::lower_bound(m_allFiles.begin(),
-                                   m_allFiles.end(),
-                                   node,
-                                   Node::sortByPath);
+            m_allFiles.end(),
+            node,
+            Node::sortByPath);
         if (it == m_allFiles.end())
             return false;
 
@@ -546,9 +545,9 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
         toAdd->setEnabled(false);
 
         it = std::lower_bound(m_allFiles.begin(),
-                              m_allFiles.end(),
-                              toAdd,
-                              Node::sortByPath);
+            m_allFiles.end(),
+            toAdd,
+            Node::sortByPath);
 
         m_allFiles.insert(it, toAdd);
     }
@@ -560,14 +559,14 @@ bool CMakeProject::renameFile(const QString &filePath, const QString &newFilePat
 
 QList<CMakeBuildTarget> CMakeProject::buildTargets() const
 {
-    CMakeBuildConfiguration *bc = activeBc(this);
+    CMakeBuildConfiguration* bc = activeBc(this);
 
     return bc ? bc->buildTargets() : QList<CMakeBuildTarget>();
 }
 
 void CMakeProject::handleReparseRequest(int reparseParameters)
 {
-    QTC_ASSERT(!(reparseParameters & BuildDirManager::REPARSE_FAIL), return);
+    QTC_ASSERT(!(reparseParameters & BuildDirManager::REPARSE_FAIL), return );
     if (reparseParameters & BuildDirManager::REPARSE_IGNORE)
         return;
 
@@ -582,11 +581,11 @@ void CMakeProject::startParsing(int reparseParameters)
 {
     m_delayedParsingParameters = BuildDirManager::REPARSE_DEFAULT;
 
-    QTC_ASSERT((reparseParameters & BuildDirManager::REPARSE_FAIL) == 0, return);
+    QTC_ASSERT((reparseParameters & BuildDirManager::REPARSE_FAIL) == 0, return );
     if (reparseParameters & BuildDirManager::REPARSE_IGNORE)
         return;
 
-    QTC_ASSERT(activeBc(this), return);
+    QTC_ASSERT(activeBc(this), return );
 
     emitParsingStarted();
 
@@ -598,8 +597,8 @@ void CMakeProject::startParsing(int reparseParameters)
         QTC_CHECK(m_treeScanner.isFinished());
         m_treeScanner.asyncScanForFiles(projectDirectory());
         Core::ProgressManager::addTask(m_treeScanner.future(),
-                                       tr("Scan \"%1\" project tree").arg(displayName()),
-                                       "CMake.Scan.Tree");
+            tr("Scan \"%1\" project tree").arg(displayName()),
+            "CMake.Scan.Tree");
     }
 
     m_buildDirManager.parse(reparseParameters);
@@ -610,7 +609,7 @@ QStringList CMakeProject::buildTargetTitles() const
     return transform(buildTargets(), &CMakeBuildTarget::title);
 }
 
-Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *errorMessage)
+Project::RestoreResult CMakeProject::fromMap(const QVariantMap& map, QString* errorMessage)
 {
     RestoreResult result = Project::fromMap(map, errorMessage);
     if (result != RestoreResult::Ok)
@@ -618,7 +617,7 @@ Project::RestoreResult CMakeProject::fromMap(const QVariantMap &map, QString *er
     return RestoreResult::Ok;
 }
 
-bool CMakeProject::setupTarget(Target *t)
+bool CMakeProject::setupTarget(Target* t)
 {
     t->updateDefaultBuildConfigurations();
     if (t->buildConfigurations().isEmpty())
@@ -632,13 +631,13 @@ void CMakeProject::handleTreeScanningFinished()
     QTC_CHECK(m_waitingForScan);
 
     qDeleteAll(m_allFiles);
-    m_allFiles = Utils::transform(m_treeScanner.release(), [](FileNode *fn) -> const FileNode* {
+    m_allFiles = Utils::transform(m_treeScanner.release(), [](FileNode* fn) -> const FileNode* {
         fn->setEnabled(false);
         return fn;
     });
 
-    CMakeBuildConfiguration *bc = activeBc(this);
-    QTC_ASSERT(bc, return);
+    CMakeBuildConfiguration* bc = activeBc(this);
+    QTC_ASSERT(bc, return );
 
     m_combinedScanAndParseResult = m_combinedScanAndParseResult && true;
     m_waitingForScan = false;
@@ -646,9 +645,9 @@ void CMakeProject::handleTreeScanningFinished()
     combineScanAndParse(bc);
 }
 
-void CMakeProject::handleParsingSuccess(CMakeBuildConfiguration *bc)
+void CMakeProject::handleParsingSuccess(CMakeBuildConfiguration* bc)
 {
-    QTC_ASSERT(m_waitingForParse, return);
+    QTC_ASSERT(m_waitingForParse, return );
 
     if (!bc || !bc->isActive())
         return;
@@ -659,7 +658,7 @@ void CMakeProject::handleParsingSuccess(CMakeBuildConfiguration *bc)
     combineScanAndParse(bc);
 }
 
-void CMakeProject::handleParsingError(CMakeBuildConfiguration *bc)
+void CMakeProject::handleParsingError(CMakeBuildConfiguration* bc)
 {
     QTC_CHECK(m_waitingForParse);
 
@@ -672,10 +671,9 @@ void CMakeProject::handleParsingError(CMakeBuildConfiguration *bc)
     combineScanAndParse(bc);
 }
 
-
-void CMakeProject::combineScanAndParse(CMakeBuildConfiguration *bc)
+void CMakeProject::combineScanAndParse(CMakeBuildConfiguration* bc)
 {
-    QTC_ASSERT(bc && bc->isActive(), return);
+    QTC_ASSERT(bc && bc->isActive(), return );
 
     if (m_waitingForParse || m_waitingForScan)
         return;
@@ -686,7 +684,7 @@ void CMakeProject::combineScanAndParse(CMakeBuildConfiguration *bc)
     emitParsingFinished(m_combinedScanAndParseResult);
 }
 
-QStringList CMakeProject::filesGeneratedFrom(const QString &sourceFile) const
+QStringList CMakeProject::filesGeneratedFrom(const QString& sourceFile) const
 {
     if (!activeTarget())
         return QStringList();
@@ -717,8 +715,8 @@ QStringList CMakeProject::filesGeneratedFrom(const QString &sourceFile) const
     } else if (fi.suffix() == "scxml") {
         generatedFilePath += "/";
         generatedFilePath += QDir::cleanPath(fi.completeBaseName());
-        return QStringList({generatedFilePath + ".h",
-                            generatedFilePath + ".cpp"});
+        return QStringList({ generatedFilePath + ".h",
+            generatedFilePath + ".cpp" });
     } else {
         // TODO: Other types will be added when adapters for their compilers become available.
         return QStringList();
@@ -727,7 +725,7 @@ QStringList CMakeProject::filesGeneratedFrom(const QString &sourceFile) const
 
 void CMakeProject::updateApplicationAndDeploymentTargets()
 {
-    Target *t = activeTarget();
+    Target* t = activeTarget();
     if (!t)
         return;
 
@@ -752,15 +750,15 @@ void CMakeProject::updateApplicationAndDeploymentTargets()
     BuildTargetInfoList appTargetList;
     DeploymentData deploymentData;
 
-    foreach (const CMakeBuildTarget &ct, buildTargets()) {
+    foreach (const CMakeBuildTarget& ct, buildTargets()) {
         if (ct.targetType == UtilityType)
             continue;
 
         if (ct.targetType == ExecutableType || ct.targetType == DynamicLibraryType) {
             if (!ct.executable.isEmpty()) {
                 deploymentData.addFile(ct.executable.toString(),
-                                       deploymentPrefix + buildDir.relativeFilePath(ct.executable.toFileInfo().dir().path()),
-                                       DeployableFile::TypeExecutable);
+                    deploymentPrefix + buildDir.relativeFilePath(ct.executable.toFileInfo().dir().path()),
+                    DeployableFile::TypeExecutable);
             }
         }
         if (ct.targetType == ExecutableType) {
@@ -801,14 +799,13 @@ void CMakeProject::createGeneratedCodeModelSupport()
 {
     qDeleteAll(m_extraCompilers);
     m_extraCompilers.clear();
-    const QList<ExtraCompilerFactory *> factories =
-            ExtraCompilerFactory::extraCompilerFactories();
+    const QList<ExtraCompilerFactory*> factories = ExtraCompilerFactory::extraCompilerFactories();
 
     const QSet<QString> fileExtensions
-            = Utils::transform<QSet>(factories, &ExtraCompilerFactory::sourceTag);
+        = Utils::transform<QSet>(factories, &ExtraCompilerFactory::sourceTag);
 
     // Find all files generated by any of the extra compilers, in a rather crude way.
-    const FileNameList fileList = files([&fileExtensions](const Node *n) {
+    const FileNameList fileList = files([&fileExtensions](const Node* n) {
         if (!SourceFiles(n))
             return false;
         const QString fp = n->filePath().toString();
@@ -817,8 +814,8 @@ void CMakeProject::createGeneratedCodeModelSupport()
     });
 
     // Generate the necessary information:
-    for (const FileName &file : fileList) {
-        ExtraCompilerFactory *factory = Utils::findOrDefault(factories, [&file](const ExtraCompilerFactory *f) {
+    for (const FileName& file : fileList) {
+        ExtraCompilerFactory* factory = Utils::findOrDefault(factories, [&file](const ExtraCompilerFactory* f) {
             return file.endsWith('.' + f->sourceTag());
         });
         QTC_ASSERT(factory, continue);
@@ -828,8 +825,8 @@ void CMakeProject::createGeneratedCodeModelSupport()
             continue;
 
         const FileNameList fileNames
-                = transform(generated,
-                            [](const QString &s) { return FileName::fromString(s); });
+            = transform(generated,
+                [](const QString& s) { return FileName::fromString(s); });
         m_extraCompilers.append(factory->create(this, file, fileNames));
     }
 

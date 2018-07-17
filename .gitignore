@@ -2,4 +2,4 @@ ide_version.h
 app_version.h
 cmakeprojectmanager.pro.user
 *.orig
-
+*.pro.user
